@@ -1,5 +1,5 @@
 from django import forms
-from .models import Order
+from .models import Order, BeerToken
 
 
 class OrderForm(forms.ModelForm):
@@ -37,3 +37,12 @@ class OrderForm(forms.ModelForm):
                 self.fields[field].widget.attrs['placeholder'] = placeholder
             self.fields[field].widget.attrs['class'] = 'stripe-style-input'
             self.fields[field].label = False
+
+
+class CouponApplyForm(forms.Form):
+    code = forms.CharField(widget=forms.TextInput(attrs={
+        'class': 'form-control',
+        'placeholder': 'Promo code',
+        'aria-label': 'Recipient\'s username',
+        'aria-describedby': 'basic-addon2'
+    }))

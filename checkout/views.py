@@ -2,16 +2,44 @@ from django.shortcuts import render, redirect, reverse, get_object_or_404, HttpR
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 from django.conf import settings
+from django.core.exceptions import ObjectDoesNotExist
+from django.views.generic import View
 
-from .forms import OrderForm
-from .models import Order, OrderLineItem
+from .forms import OrderForm, CouponApplyForm
+from .models import Order, OrderLineItem, BeerToken
 from products.models import Product
 from profiles.models import UserProfile
 from profiles.forms import UserProfileForm
 from bag.contexts import bag_contents
+from django.urls import reverse_lazy
 
 import stripe
 import json
+
+
+def get_coupon(request, code):
+    try:
+        coupon = BeerToken.objects.get(code=code)
+        return coupon
+    except ObjectDoesNotExist:
+        messages.info(request, "This coupon does not exist")
+        return redirect('checkout')
+
+
+class AddCouponView(View):
+    def post(self, *args, **kwargs):
+        form = CouponApplyForm(self.request.POST or None)
+        if form.is_valid():
+            try:
+                code = form.cleaned_data.get('code')
+                order = Order.objects.get(User=self.request.user)
+                order.coupon = get_coupon(self.request, code)
+                order.save()
+                messages.success(self.request, "The coupon has been successfully added")
+                return redirect('checkout')
+            except ObjectDoesNotExist:
+                messages.info(self.request, "You do not have an active order")
+                return redirect('checkout')
 
 
 @require_POST
@@ -38,6 +66,7 @@ def checkout(request):
     if request.method == 'POST':
         bag = request.session.get('bag', {})
 
+
         form_data = {
             'full_name': request.POST['full_name'],
             'email': request.POST['email'],
@@ -49,6 +78,7 @@ def checkout(request):
             'street_address2': request.POST['street_address2'],
             'county': request.POST['county'],
         }
+        
         order_form = OrderForm(form_data)
         if order_form.is_valid():
             order = order_form.save()
@@ -126,9 +156,10 @@ def checkout(request):
     if not stripe_public_key:
         messages.warning(request, 'Stripe public key is missing. \
             Did you forget to set it in your environment?')
-
+    coupon_form = CouponApplyForm()
     template = 'checkout/checkout.html'
     context = {
+        'coupon_form': coupon_form,
         'order_form': order_form,
         'stripe_public_key': stripe_public_key,
         'client_secret': intent.client_secret,
