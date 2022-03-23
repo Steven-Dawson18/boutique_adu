@@ -28,6 +28,11 @@ class OrderAdmin(admin.ModelAdmin):
 
     ordering = ('-date',)
 
+class BeerTokenAdmin(admin.ModelAdmin):
+    
+    fields = ('code')
+
+    list_display = ('code',)
 
 admin.site.register(Order, OrderAdmin)
 admin.site.register(BeerToken)

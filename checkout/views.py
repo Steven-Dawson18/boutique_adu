@@ -29,17 +29,25 @@ def get_coupon(request, code):
 class AddCouponView(View):
     def post(self, *args, **kwargs):
         form = CouponApplyForm(self.request.POST or None)
+        
         if form.is_valid():
             try:
                 code = form.cleaned_data.get('code')
-                order = Order.objects.get(User=self.request.user)
-                order.coupon = get_coupon(self.request, code)
-                order.save()
+                print(code)
+                bag = self.request.session.get('bag', {})
+                if not bag:
+                    messages.error(self.request, "There's nothing in your bag at the moment")
+                    return redirect(reverse('products'))
+
+                current_bag = bag_contents(self.request)
+                coupon = get_coupon(self.request, code)
+                total = current_bag['grand_total'] - coupon.discount
+               
                 messages.success(self.request, "The coupon has been successfully added")
-                return redirect('checkout')
+                return redirect('checkout_summary')
             except ObjectDoesNotExist:
                 messages.info(self.request, "You do not have an active order")
-                return redirect('checkout')
+                return redirect('checkout_summary')
 
 
 @require_POST
@@ -78,7 +86,7 @@ def checkout(request):
             'street_address2': request.POST['street_address2'],
             'county': request.POST['county'],
         }
-        
+
         order_form = OrderForm(form_data)
         if order_form.is_valid():
             order = order_form.save()
@@ -167,6 +175,22 @@ def checkout(request):
 
     return render(request, template, context)
 
+
+def checkout_summary(request):
+    coupon_form = CouponApplyForm()
+    bag = request.session.get('bag', {})
+    if not bag:
+        messages.error(request, "There's nothing in your bag at the moment")
+        return redirect(reverse('products'))
+
+        current_bag = bag_contents(request)
+        total = current_bag['grand_total']
+    template = 'checkout/checkout_summary.html'
+    context = {
+        'coupon_form': coupon_form,
+    }
+
+    return render(request, template, context)
 
 def checkout_success(request, order_number):
     """
